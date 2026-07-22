@@ -1,3 +1,8 @@
 pulp>=2.8
 pytest>=7.4
 osmnx>=2.0
+pulp>=2.8
+pytest>=7.4
+osmnx>=2.0
+folium>=0.18
+scikit-learn>=1.3
