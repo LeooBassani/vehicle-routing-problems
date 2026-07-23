@@ -45,3 +45,25 @@ class TestVRPTWMilp:
         inst = generate_cvrp_instance(num_customers=4, seed=1)
         with pytest.raises(ValueError):
             solve_vrptw_milp(inst)
+
+class TestVRPTWSavings:
+    def test_produced_routes_respect_time_windows(self):
+        from vrp.heuristics.clarke_wright import solve_vrptw_savings
+        inst = generate_vrptw_instance(num_customers=8, vehicle_capacity=50, num_vehicles=4, seed=2)
+        sol = solve_vrptw_savings(inst)
+        for r in sol.routes:
+            assert _simulate_route(inst, r), f"Route {r} violates a time window"
+
+    def test_all_customers_served_exactly_once(self):
+        from vrp.heuristics.clarke_wright import solve_vrptw_savings
+        inst = generate_vrptw_instance(num_customers=8, vehicle_capacity=50, num_vehicles=4, seed=2)
+        sol = solve_vrptw_savings(inst)
+        served = sorted(c for r in sol.routes for c in r)
+        assert served == list(range(inst.num_customers()))
+
+    def test_respects_capacity(self):
+        from vrp.heuristics.clarke_wright import solve_vrptw_savings
+        inst = generate_vrptw_instance(num_customers=8, vehicle_capacity=50, num_vehicles=4, seed=2)
+        sol = solve_vrptw_savings(inst)
+        for r in sol.routes:
+            assert sum(inst.demands[c] for c in r) <= inst.vehicle_capacity
