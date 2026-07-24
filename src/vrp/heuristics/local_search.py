@@ -4,15 +4,21 @@ import time
 
 from vrp.instance import Instance
 from vrp.models.cvrp import RoutingSolution
-from vrp.heuristics.clarke_wright import solve_cvrp_savings, _route_distance
+from vrp.heuristics.clarke_wright import solve_cvrp_savings, solve_vrptw_savings, _route_distance, _tw_simulate_factory
 
 
-def two_opt(route, depot, coords, dist_fn, max_iterations=1000):
+def two_opt(route, depot, coords, dist_fn, feasibility_check=None, max_iterations=1000):
     """
-    Refine a single route by repeatedly undoing crossings: remove two arcs, 
-    reconnect the only other valid way (which reverses the segment between them), 
-    keep the change if it shortens the route. Depot stays fixed at both ends -- only 
-    the customer ordering in between changes.
+    Refine a single route's internal ordering by repeatedly undoing
+    crossings: remove two arcs, reconnect the only other valid way (which
+    reverses the segment between them), keep the change if it shortens
+    the route. Depot stays fixed at both ends -- only the customer
+    ordering in between changes.
+
+    `feasibility_check(route) -> bool`: optional, e.g. for VRPTW. Since
+    reversing a segment changes arrival times at every stop downstream of
+    it, a distance-improving swap can still violate a time window -- the
+    swap is only applied if it also passes this check.
     """
     route = route[:]
     n = len(route)
@@ -32,16 +38,28 @@ def two_opt(route, depot, coords, dist_fn, max_iterations=1000):
                 d = depot if j == n - 1 else coords[route[j + 1]]
                 delta = (dist_fn(a, c) + dist_fn(b, d)) - (dist_fn(a, b) + dist_fn(c, d))
                 if delta < -1e-9:
-                    route[i + 1:j + 1] = list(reversed(route[i + 1:j + 1]))
+                    candidate = route[:]
+                    candidate[i + 1:j + 1] = list(reversed(candidate[i + 1:j + 1]))
+                    if feasibility_check is not None and not feasibility_check(candidate):
+                        continue
+                    route = candidate
                     improved = True
     return route
 
 
-def or_opt(routes, depot, coords, demands, capacity, dist_fn, segment_lengths=(1, 2, 3), max_iterations=1000):
+def or_opt(routes, depot, coords, demands, capacity, dist_fn, feasibility_check=None,
+           segment_lengths=(1, 2, 3), max_iterations=1000):
     """
     Refine across all routes at once: try relocating a short chain of 1-3
     consecutive customers (in either orientation) to a better position,
     in the same route or a different one, subject to vehicle capacity.
+
+    `feasibility_check(route) -> bool`: optional, e.g. for VRPTW. Applied
+    to both the destination route (after insertion) and the source route
+    (after removal, when moving between different routes) before a move
+    is accepted -- inserting a segment shifts arrival times for every
+    subsequent stop in that route, which can turn a distance-improving
+    move into a time-window violation.
     """
     routes = [r[:] for r in routes]
     route_load = [sum(demands[c] for c in r) for r in routes]
@@ -59,6 +77,7 @@ def or_opt(routes, depot, coords, demands, capacity, dist_fn, segment_lengths=(1
                 for start in range(len(src_route) - seg_len + 1):
                     segment = src_route[start:start + seg_len]
                     seg_demand = sum(demands[c] for c in segment)
+                    remaining_src = src_route[:start] + src_route[start + seg_len:]
 
                     prev_point = depot if start == 0 else coords[src_route[start - 1]]
                     next_point = depot if start + seg_len == len(src_route) else coords[src_route[start + seg_len]]
@@ -73,7 +92,7 @@ def or_opt(routes, depot, coords, demands, capacity, dist_fn, segment_lengths=(1
 
                     for dst_idx, dst_route in enumerate(routes):
                         if dst_idx == src_idx:
-                            working_route = src_route[:start] + src_route[start + seg_len:]
+                            working_route = remaining_src
                         else:
                             if route_load[dst_idx] + seg_demand > capacity:
                                 continue
@@ -88,6 +107,12 @@ def or_opt(routes, depot, coords, demands, capacity, dist_fn, segment_lengths=(1
                                 )
                                 delta = insertion_cost - removal_gain
                                 if delta < best_delta:
+                                    candidate_dst = working_route[:pos] + seg + working_route[pos:]
+                                    if feasibility_check is not None:
+                                        if not feasibility_check(candidate_dst):
+                                            continue
+                                        if dst_idx != src_idx and not feasibility_check(remaining_src):
+                                            continue
                                     best_delta = delta
                                     best_target = (dst_idx, pos, seg)
 
@@ -107,7 +132,7 @@ def or_opt(routes, depot, coords, demands, capacity, dist_fn, segment_lengths=(1
     return [r for r in routes if r]  # drop any route emptied out by relocation
 
 
-def local_search(routes, depot, coords, demands, capacity, dist_fn, max_rounds=20):
+def local_search(routes, depot, coords, demands, capacity, dist_fn, feasibility_check=None, max_rounds=20):
     """
     Alternates 2-opt (per route) and Or-opt (across routes) until neither
     finds any further improvement -- an Or-opt move can create a new
@@ -115,8 +140,8 @@ def local_search(routes, depot, coords, demands, capacity, dist_fn, max_rounds=2
     of each isn't enough.
     """
     for _ in range(max_rounds):
-        new_routes = [two_opt(r, depot, coords, dist_fn) for r in routes]
-        new_routes = or_opt(new_routes, depot, coords, demands, capacity, dist_fn)
+        new_routes = [two_opt(r, depot, coords, dist_fn, feasibility_check=feasibility_check) for r in routes]
+        new_routes = or_opt(new_routes, depot, coords, demands, capacity, dist_fn, feasibility_check=feasibility_check)
         if new_routes == routes:
             break
         routes = new_routes
@@ -137,6 +162,29 @@ def solve_cvrp_savings_refined(instance: Instance) -> RoutingSolution:
     start = time.time()
     refined_routes = local_search(
         base.routes, depot, instance.customers, instance.demands, instance.vehicle_capacity, instance.distance,
+    )
+    elapsed = base.solve_time + (time.time() - start)
+    total = sum(_route_distance(depot, instance.customers, r, instance.distance) for r in refined_routes)
+
+    status = base.status.replace("Heuristic", "Heuristic+2opt/Or-opt")
+    return RoutingSolution(routes=refined_routes, total_distance=total, status=status, solve_time=elapsed)
+
+
+def solve_vrptw_savings_refined(instance: Instance) -> RoutingSolution:
+    """
+    Same idea as solve_cvrp_savings_refined, but time-window aware: every
+    2-opt/Or-opt candidate move is simulated and rejected if it would
+    violate a time window, using the same simulation logic as
+    solve_vrptw_savings' construction phase.
+    """
+    base = solve_vrptw_savings(instance)
+    depot = instance.depots[0]
+    feasibility_check = _tw_simulate_factory(instance)
+
+    start = time.time()
+    refined_routes = local_search(
+        base.routes, depot, instance.customers, instance.demands, instance.vehicle_capacity, instance.distance,
+        feasibility_check=feasibility_check,
     )
     elapsed = base.solve_time + (time.time() - start)
     total = sum(_route_distance(depot, instance.customers, r, instance.distance) for r in refined_routes)

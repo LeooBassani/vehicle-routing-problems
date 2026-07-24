@@ -104,15 +104,14 @@ def solve_cvrp_savings(instance: Instance) -> RoutingSolution:
     return RoutingSolution(routes=routes, total_distance=total, status=status, solve_time=elapsed)
 
 
-def _tw_feasibility_factory(instance: Instance) -> Callable[[list[int]], Optional[list[int]]]:
+def _tw_simulate_factory(instance: Instance) -> Callable[[list[int]], bool]:
     """
-    Builds a feasibility_check closure for VRPTW savings merges: given a
-    candidate merged route, simulate it (same logic as
-    tests/test_vrptw.py's _simulate_route) and reject the merge if any
-    time window or the depot's closing time is violated. Tries both
-    orientations of the merged route before rejecting, since the
-    orientation _try_merge picked for distance/capacity reasons isn't
-    necessarily the one that respects time windows.
+    Builds a plain feasibility check (route -> bool) for a candidate route:
+    simulates it and returns whether every time window and the depot's
+    closing time are respected. No orientation retry here -- unlike
+    `_tw_feasibility_factory` (used by the savings merge, where the
+    orientation is still undecided), callers of this one already have a
+    specific candidate route in mind and just need a yes/no answer.
     """
     depot = instance.depots[0]
     coords = instance.customers
@@ -133,6 +132,20 @@ def _tw_feasibility_factory(instance: Instance) -> Callable[[list[int]], Optiona
             t = max(arrival, earliest) + service[c]
             prev = coords[c]
         return t + instance.distance(prev, depot) / speed <= depot_close
+
+    return simulate
+
+
+def _tw_feasibility_factory(instance: Instance) -> Callable[[list[int]], Optional[list[int]]]:
+    """
+    Builds a feasibility_check closure for VRPTW savings merges: given a
+    candidate merged route, simulate it and reject the merge if any time
+    window or the depot's closing time is violated. Tries both
+    orientations of the merged route before rejecting, since the
+    orientation _try_merge picked for distance/capacity reasons isn't
+    necessarily the one that respects time windows.
+    """
+    simulate = _tw_simulate_factory(instance)
 
     def check(route: list[int]) -> Optional[list[int]]:
         if simulate(route):

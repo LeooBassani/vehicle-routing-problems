@@ -74,3 +74,41 @@ class TestLocalSearchIntegration:
         for r in refined.routes:
             assert sum(inst.demands[c] for c in r) <= inst.vehicle_capacity
         assert len(refined.routes) <= inst.num_vehicles_per_depot
+
+class TestVRPTWLocalSearchIntegration:
+    def test_refinement_never_worsens_savings_solution(self):
+        from vrp.instance import generate_vrptw_instance
+        from vrp.heuristics.clarke_wright import solve_vrptw_savings
+        from vrp.heuristics.local_search import solve_vrptw_savings_refined
+
+        for seed in range(1, 6):
+            inst = generate_vrptw_instance(num_customers=8, vehicle_capacity=50, num_vehicles=4, seed=seed)
+            base = solve_vrptw_savings(inst)
+            refined = solve_vrptw_savings_refined(inst)
+            assert refined.total_distance <= base.total_distance + 1e-6
+
+    def test_refinement_still_respects_time_windows_and_capacity(self):
+        from vrp.instance import generate_vrptw_instance
+        from vrp.heuristics.local_search import solve_vrptw_savings_refined
+
+        inst = generate_vrptw_instance(num_customers=10, vehicle_capacity=50, num_vehicles=5, seed=3)
+        refined = solve_vrptw_savings_refined(inst)
+
+        def simulate(route):
+            t = 0.0
+            prev = inst.depots[0]
+            for c in route:
+                travel = inst.distance(prev, inst.customers[c]) / inst.speed
+                arrival = t + travel
+                earliest, latest = inst.time_windows[c]
+                if arrival > latest:
+                    return False
+                t = max(arrival, earliest) + inst.service_times[c]
+                prev = inst.customers[c]
+            return t + inst.distance(prev, inst.depots[0]) / inst.speed <= inst.depot_time_window[1]
+
+        served = sorted(c for r in refined.routes for c in r)
+        assert served == list(range(inst.num_customers()))
+        for r in refined.routes:
+            assert simulate(r), f"Route {r} violates a time window after refinement"
+            assert sum(inst.demands[c] for c in r) <= inst.vehicle_capacity
