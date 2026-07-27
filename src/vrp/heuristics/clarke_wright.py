@@ -158,6 +158,57 @@ def _tw_feasibility_factory(instance: Instance) -> Callable[[list[int]], Optiona
     return check
 
 
+def solve_mdvrp_savings(instance: Instance) -> RoutingSolution:
+    """
+    MDVRP via decomposition: assign each customer to its nearest depot
+    (by straight-line distance), then run the same Clarke-Wright savings
+    merge independently within each depot's cluster.
+
+    This pre-assignment is fixed before routing even starts, so it cannot
+    rebalance customers the way the MILP's joint depot-assignment +
+    routing optimization can. On some instances, nearest-depot assignment
+    produces a cluster whose customers can't all fit within that depot's
+    own vehicle limit -- even though a different (still nearest-neighbor-
+    reasonable) assignment would have. The per-depot fleet status is
+    reported explicitly (see `status`) rather than silently ignored.
+    """
+    if instance.num_depots() < 2:
+        raise ValueError("solve_mdvrp_savings expects >= 2 depots.")
+    start = time.time()
+
+    assignment: dict[int, list[int]] = {d: [] for d in range(instance.num_depots())}
+    for idx, c in enumerate(instance.customers):
+        nearest = min(range(instance.num_depots()), key=lambda d: instance.distance(instance.depots[d], c))
+        assignment[nearest].append(idx)
+
+    all_routes = []
+    total = 0.0
+    fleet_exceeded_depots = []
+    for d, customer_idxs in assignment.items():
+        if not customer_idxs:
+            continue
+        depot = instance.depots[d]
+        sub_coords = [instance.customers[i] for i in customer_idxs]
+        sub_demands = [instance.demands[i] for i in customer_idxs]
+        sub_routes = _savings_merge(
+            depot, sub_coords, sub_demands, instance.vehicle_capacity, instance.distance,
+            max_routes=instance.num_vehicles_per_depot,
+        )
+        if len(sub_routes) > instance.num_vehicles_per_depot:
+            fleet_exceeded_depots.append(d)
+        for r in sub_routes:
+            global_route = [customer_idxs[local] for local in r]
+            total += _route_distance(depot, instance.customers, global_route, instance.distance)
+            all_routes.append([-(d + 1)] + global_route)
+
+    elapsed = time.time() - start
+    if fleet_exceeded_depots:
+        status = f"Heuristic (fleet exceeded at depot(s) {fleet_exceeded_depots})"
+    else:
+        status = "Heuristic"
+    return RoutingSolution(routes=all_routes, total_distance=total, status=status, solve_time=elapsed)
+
+
 def solve_vrptw_savings(instance: Instance) -> RoutingSolution:
     if instance.num_depots() != 1:
         raise ValueError("solve_vrptw_savings expects a single-depot instance.")
