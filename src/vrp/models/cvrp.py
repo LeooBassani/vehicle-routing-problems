@@ -1,10 +1,8 @@
 """
-Exact MILP formulation for the Capacitated Vehicle Routing Problem (CVRP).
-
-Formulation: two-index vehicle-flow with Miller-Tucker-Zemlin (MTZ)
-subtour elimination and remaining-capacity tracking. See
-docs/math_formulation.md for the full mathematical statement (sets,
-parameters, decision variables, objective and constraints).
+Formulation: two-index vehicle-flow with subtour elimination and 
+remaining-capacity tracking. See docs/math_formulation.md for the 
+full mathematical statement (sets, parameters, decision variables, 
+objective and constraints).
 
 This formulation scales to roughly 12-15 customers within a reasonable
 time limit on CBC (the open-source solver bundled with PuLP) -- it is
@@ -68,7 +66,7 @@ def solve_cvrp_from_distance_matrix(
     msg: bool = False,
 ) -> RoutingSolution:
     """
-    Same exact CVRP MILP as `solve_cvrp_milp`, but taking a pre-computed
+    Same exact CVRP as `solve_cvrp_milp`, but taking a pre-computed
     distance matrix directly instead of Euclidean coordinates. This is the
     piece that makes the model reusable for real road-network distances
     later on -- e.g. real driving distances instead of straight-line.
@@ -108,9 +106,7 @@ def solve_cvrp_from_distance_matrix(
     prob += pulp.lpSum(x[i][0] for i in customers) <= K
     prob += pulp.lpSum(x[0][j] for j in customers) == pulp.lpSum(x[i][0] for i in customers)
 
-    # MTZ subtour elimination + capacity, remaining-capacity form:
-    # if x[i,j]=1, remaining capacity after j must be at most remaining
-    # capacity after i, minus what gets delivered at j.
+    # Subtour elimination + capacity, remaining-capacity form:
     for i in customers:
         for j in customers:
             if i != j:

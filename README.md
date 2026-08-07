@@ -33,26 +33,29 @@ for all three models are in
 [`docs/math_formulation.md`](docs/math_formulation.md).
 
 ## Repository structure
-src/vrp/
-├── instance.py # Instance dataclass + synthetic instance generators
-├── real_world.py # Real POIs (Chelsea, MA) from OpenStreetMap
-├── road_network.py # Real street network + shortest-path distances (OSMnx/NetworkX)
-├── road_case_study.py # Full pipeline: real POIs + real road distances -> MILP/heuristic
-├── models/
-│ ├── cvrp.py # Exact MILP: two-index vehicle-flow + MTZ (remaining-capacity form)
-│ ├── vrptw.py # + time windows (big-M time propagation)
-│ └── mdvrp.py # + multi-depot assignment variables
-├── heuristics/
-│ ├── clarke_wright.py # Savings heuristic: fleet-aware, time-window-aware, multi-depot decomposition
-│ └── local_search.py # 2-opt + Or-opt refinement (time-window-aware for VRPTW)
-├── benchmark.py # MILP vs heuristic: gap + runtime scaling, all 3 variants
-├── visualization.py # Route plotting (matplotlib), all 3 variants
-└── map_viz.py # Interactive route maps on real streets
 
-docs/math_formulation.md # Full MILP formulations for all 3 variants
-tests/ # pytest suite (all 3 variants, MILP + heuristic + refinement)
-results/ # Benchmark CSV
-notebooks/ # End-to-end demo notebooks
+```text
+src/vrp/
+├── instance.py              # Instance dataclass + synthetic instance generators
+├── real_world.py            # Real POIs (Chelsea, MA) from OpenStreetMap
+├── road_network.py          # Real street network + shortest-path distances (OSMnx/NetworkX)
+├── road_case_study.py       # Full pipeline: real POIs + real road distances -> MILP/heuristic
+├── models/
+│   ├── cvrp.py                # Exact MILP: two-index vehicle-flow + MTZ (remaining-capacity form)
+│   ├── vrptw.py               # + time windows (big-M time propagation)
+│   └── mdvrp.py               # + multi-depot assignment variables
+├── heuristics/
+│   ├── clarke_wright.py     # Savings heuristic: fleet-aware, time-window-aware, multi-depot decomposition
+│   └── local_search.py      # 2-opt + Or-opt refinement (time-window-aware for VRPTW)
+├── benchmark.py              # MILP vs heuristic: gap + runtime scaling, all 3 variants
+├── visualization.py          # Route plotting (matplotlib), all 3 variants
+└── map_viz.py                 # Interactive route maps on real streets (Folium)
+
+docs/math_formulation.md      # Full MILP formulations for all 3 variants
+tests/                         # pytest suite (all 3 variants, MILP + heuristic + refinement)
+results/                       # Benchmark CSV
+notebooks/                     # End-to-end demo notebooks
+```
 
 ## Quickstart
 
