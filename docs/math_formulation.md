@@ -22,10 +22,10 @@ the depot full and empties out as it delivers.
 
 ### Parameters
 
-| $d_{ij}$ | distance from node $i$ to node $j$ |
-| $q_i$ | demand of customer $i$ (with $q_0 = 0$) |
-| $Q$ | vehicle capacity |
-| $K$ | number of available vehicles |
+$$d_{ij}$ distance from node $i$ to node $j$$ 
+$$q_i$ demand of customer $i$ (with $q_0 = 0$)$
+$$Q$ vehicle capacity$
+$$K$ number of available vehicles$
 
 ### Decision variables
 
@@ -43,9 +43,9 @@ $$\min \sum_{i \in V} \sum_{\substack{j \in V \\ j \ne i}} d_{ij}\, x_{ij}$$
 
 **(1) Each customer is visited exactly once:**
 
-$$\sum_{\substack{i \in V \\ i \ne h}} x_{ih} = 1 \qquad \forall h \in V \setminus \{0\}$$
+$$\sum_{\substack{i \in V \\ i \ne h}} x_{ih} = 1 \qquad \forall h \in V $$
 
-$$\sum_{\substack{j \in V \\ j \ne h}} x_{hj} = 1 \qquad \forall h \in V \setminus \{0\}$$
+$$\sum_{\substack{j \in V \\ j \ne h}} x_{hj} = 1 \qquad \forall h \in V $$
 
 ($h$ is the index for "the customer this constraint is about," distinct
 from $i$/$j$, which range over that customer's possible neighbors.)
@@ -74,10 +74,10 @@ constraints as above, plus:
 
 ### Additional parameters
 
-| $[e_i, l_i]$ | time window at node $i$ (earliest/latest allowed start of service) |
-| $s_i$ | service duration at node $i$ |
-| $\tau_{ij}$ | travel time from $i$ to $j$ ($\tau_{ij} = d_{ij} / \text{speed}$) |
-| $[e_0, l_0]$ | depot operating window |
+$$[e_i, l_i]$ time window at node $i$ (earliest/latest allowed start of service)$
+$$s_i$ | service duration at node $i$$
+$$\tau_{ij}$ | travel time from $i$ to $j$ ($\tau_{ij} = d_{ij} / \text{speed}$)$
+$$[e_0, l_0]$ | depot operating window$
 
 ### Additional decision variable
 
@@ -102,7 +102,8 @@ among customer nodes.
 
 ### Additional sets & parameters
 
-- $D = \{0, \dots, |D|-1\}$ — depot nodes; $N$ — customer nodes ($V = D \cup N$)
+- $D = \{0, \dots, |D|-1\}$ — depot nodes; 
+- $N$ — customer nodes ($V = D \cup N$)
 - $K_d$ — vehicles available at depot $d$
 
 ### Additional decision variable
